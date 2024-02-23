@@ -8,7 +8,7 @@ data State = State InternalState [Card] [Card]
          deriving (Ord, Eq, Show)
 
 -- internal state consists of the white cards to draw from, the black cards to draw from 
--- (alongside GPT's best answer) and the current score (players score, GPT's score)
+-- alongside GPT's best answer and the current score (players score, GPT's score)
 type InternalState = ([Card], [[Card]], (Int, Int))
 
 -- each card is a string of words 
@@ -18,12 +18,12 @@ type Player = State -> Action
 
 type Game = Action -> State -> Result
 
--- result of a game is True if player won, False if AI won
+-- result of a game is True if player won, False if GPT won
 data Result = EndOfGame Bool State
             | ContinueGame State         
             deriving (Eq, Show)
 
--- both players choose a card to play 
+-- player choose's which card to play
 newtype Action = Action Card
         deriving (Ord, Eq, Show)
 
@@ -36,7 +36,7 @@ splitsep sep (h:t)
                 where w:rest = splitsep sep t
 
 -- taken from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/ReadCSV.hs
--- reads csv file of cards
+-- reads csv file and turns to list of lines
 readcsv :: FilePath -> IO [Card]
 readcsv filename =
   do
@@ -71,15 +71,15 @@ shuffle xs = do
 processShuffle :: [a] -> [a]
 processShuffle deck = unsafePerformIO(shuffled) where shuffled = shuffle deck 
 
--- initialized basic game
+-- initialize basic game, 10 white cards, 10 black cards, 10 player's cards
 newGame :: State
 newGame = State (w2, b, (0, 0)) b1 w1 where 
     (w1, w2) = splitAt 10 (take 20 (processShuffle whiteDeck))
     b1:b = take 10 (processShuffle blackDeck)
 
 
--- ([Card], [(Card, Card)], (Card, Card), (Int, Int)) [Card]
--- updates the score each round, terminates game when there are no more white/black cards to use
+-- updates the score and refreshes black card and available actions each round
+-- terminates game when there are no more white or black cards in decks
 cards :: Game 
 cards (Action pCard) (State (w:wCards, b:bCards, (pScore, aScore)) (card:aCard:rest) pCards)
     | win pCard aCard card = ContinueGame (State (wCards, bCards, (pScore + 1, aScore)) b (w:removeElem pCards pCard))
@@ -88,7 +88,7 @@ cards (Action pCard) (State (_, _, (pScore, aScore)) (card:aCard:rest) pCards)
     | win pCard aCard card = EndOfGame ((pScore + 1) > aScore) (State ([], [], (pScore+1, aScore)) [] pCards)
     | otherwise = EndOfGame (pScore > (aScore+1)) (State ([], [], (pScore, aScore+1)) [] pCards)
 
--- converts player's vote to Bool (instead of IO Bool)
+-- converts player's vote to Bool for further use
 win :: Card -> Card -> Card -> Bool
 win pCard aCard bCard = 
     unsafePerformIO (getPlayerVote pCard aCard bCard)
@@ -113,10 +113,9 @@ removeElem (x:xs) e
     | x == e = xs
     | otherwise = x:removeElem xs e 
 
--- loops over game play, gathering both players choices into one action and calling game to update state 
+-- loops over game play, gathering player's action and calling game to update state 
 play :: Game -> State -> IO String
 play game (State internalstate (bCard:aCard:t) pCards) = do
-    --print score 
     person_play <- person (State internalstate [bCard] pCards)
     case game (Action person_play) (State internalstate (bCard:aCard:t) pCards) of 
         EndOfGame True end_state -> return "You are funnier than GPT!"
