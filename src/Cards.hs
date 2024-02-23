@@ -1,12 +1,15 @@
+import System.Random
+import Data.Array.IO
+import Control.Monad
 import GHC.IO.Unsafe
 
 -- state consists of internal state and the score of the Player and the AI
-data State = State InternalState (Card, Card) [Card]
+data State = State InternalState [Card] [Card]
          deriving (Ord, Eq, Show)
 
 -- internal state consists of the white cards to draw from, the black cards to draw from 
 -- (alongside GPT's best answer) and the current score (players score, GPT's score)
-type InternalState = ([Card], [(Card, Card)], (Int, Int))
+type InternalState = ([Card], [[Card]], (Int, Int))
 
 -- each card is a string of words 
 type Card = String
@@ -24,25 +27,66 @@ data Result = EndOfGame Bool State
 newtype Action = Action Card
         deriving (Ord, Eq, Show)
 
--- start of hands
--- !!! TODO: initialize properly
-fullDeck :: [Card]
-fullDeck = ["s", "a", "b", "d", "e"]
+-- taken from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/ReadCSV.hs
+splitsep :: (a -> Bool) -> [a] -> [[a]]
+splitsep sep [] = [[]]
+splitsep sep (h:t)
+    | sep h = []: splitsep sep t
+    | otherwise = (h:w):rest
+                where w:rest = splitsep sep t
+
+-- taken from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/ReadCSV.hs
+-- reads csv file of cards
+readcsv :: FilePath -> IO [Card]
+readcsv filename =
+  do
+    file <- readFile filename
+    return (splitsep (=='\n') file)
+
+-- load white deck from file 
+whiteDeck :: [Card]
+whiteDeck = unsafePerformIO(readcsv "answers.csv")
+
+-- load black deck from file 
+blackDeck :: [[Card]]
+blackDeck = [splitsep (==',') line| line <- unsafePerformIO(readcsv "questions_answers_index.csv")]
+
+-- algorithm for shuffle taken from https://wiki.haskell.org/Random_shuffle
+-- Randomly shuffle a list
+shuffle :: [a] -> IO [a]
+shuffle xs = do
+        ar <- newArray n xs
+        forM [1..n] $ \i -> do
+            j <- randomRIO (i,n)
+            vi <- readArray ar i
+            vj <- readArray ar j
+            writeArray ar j vi
+            return vj
+    where
+      n = length xs
+      newArray :: Int -> [a] -> IO (IOArray Int a)
+      newArray n xs =  newListArray (1,n) xs
+
+-- converts from IO deck to deck for continued use in game 
+processShuffle :: [a] -> [a]
+processShuffle deck = unsafePerformIO(shuffled) where shuffled = shuffle deck 
 
 -- initialized basic game
--- !!! TODO: intialize properly
 newGame :: State
-newGame = State (fullDeck, [("x", "a")], (0, 0)) ("d", "e") fullDeck
+newGame = State (w2, b, (0, 0)) b1 w1 where 
+    (w1, w2) = splitAt 10 (take 20 (processShuffle whiteDeck))
+    b1:b = take 10 (processShuffle blackDeck)
+
 
 -- ([Card], [(Card, Card)], (Card, Card), (Int, Int)) [Card]
 -- updates the score each round, terminates game when there are no more white/black cards to use
 cards :: Game 
-cards (Action pCard) (State (w:wCards, (b, a):bCards, (pScore, aScore)) (card, aCard) pCards)
-    | win pCard aCard card = ContinueGame (State (wCards, bCards, (pScore + 1, aScore)) (b, a) (w:removeElem pCards pCard))
-    | otherwise = ContinueGame (State (wCards, bCards, (pScore, aScore+1)) (b, a) (w:removeElem pCards pCard))
-cards (Action pCard) (State (_, _, (pScore, aScore)) (card, aCard) pCards)
-    | win pCard aCard card = EndOfGame ((pScore + 1) > aScore) (State ([], [], (pScore+1, aScore)) ("", "") pCards)
-    | otherwise = EndOfGame (pScore > (aScore+1)) (State ([], [], (pScore, aScore+1)) ("", "") pCards)
+cards (Action pCard) (State (w:wCards, b:bCards, (pScore, aScore)) (card:aCard:rest) pCards)
+    | win pCard aCard card = ContinueGame (State (wCards, bCards, (pScore + 1, aScore)) b (w:removeElem pCards pCard))
+    | otherwise = ContinueGame (State (wCards, bCards, (pScore, aScore+1)) b (w:removeElem pCards pCard))
+cards (Action pCard) (State (_, _, (pScore, aScore)) (card:aCard:rest) pCards)
+    | win pCard aCard card = EndOfGame ((pScore + 1) > aScore) (State ([], [], (pScore+1, aScore)) [] pCards)
+    | otherwise = EndOfGame (pScore > (aScore+1)) (State ([], [], (pScore, aScore+1)) [] pCards)
 
 -- converts player's vote to Bool (instead of IO Bool)
 win :: Card -> Card -> Card -> Bool
@@ -71,10 +115,10 @@ removeElem (x:xs) e
 
 -- loops over game play, gathering both players choices into one action and calling game to update state 
 play :: Game -> State -> IO String
-play game (State internalstate (bCard, aCard) pCards) = do
+play game (State internalstate (bCard:aCard:t) pCards) = do
     --print score 
-    person_play <- person (State internalstate (bCard, "") pCards)
-    case game (Action person_play) (State internalstate (bCard, aCard) pCards) of 
+    person_play <- person (State internalstate [bCard] pCards)
+    case game (Action person_play) (State internalstate (bCard:aCard:t) pCards) of 
         EndOfGame True end_state -> return "You are funnier than GPT!"
         EndOfGame False end_state -> return "GPT is funnier than you!"
         ContinueGame next_state -> play game next_state
@@ -83,19 +127,9 @@ play game (State internalstate (bCard, aCard) pCards) = do
 -- person can select 0-9 representing the order of white Cards to choose 
 -- !!! TODO: add checks for proper input and return user specified card, currently returns the first               
 person :: State -> IO Card
-person (State internalstate (card, _) (p:pCards)) = do 
+person (State internalstate (card:t) (p:pCards)) = do 
     putStrLn card
     putStrLn "Select which card to play 0-9"
     print (p:pCards)
     line <- getLine
     return p
-    -- let nums = ["0", "1", "2", "3", "4", "5", "6"]
-    --return (process_selection pCards nums line)
-
--- !!! TODO: fix  attempt at input checking 
-{- process_selection :: [Card] -> [String] -> String -> Card -}
-{- process_selection (c:cards) (n:nums) line  -}
-{-     | n == line = return c -}
-{-     | otherwise = process_selection cards nums line -}
-{- process_selection _ _ _ = return "" -}
-{-      -}
