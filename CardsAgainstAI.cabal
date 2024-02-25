@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Cards
       Lib
   other-modules:
       Paths_CardsAgainstAI
