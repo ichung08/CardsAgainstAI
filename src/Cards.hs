@@ -2,6 +2,7 @@ import System.Random
 import Data.Array.IO
 import Control.Monad
 import GHC.IO.Unsafe
+import Data.Char
 
 -- state consists of internal state and the score of the Player and the AI
 data State = State InternalState [Card] [Card]
@@ -93,6 +94,31 @@ win :: Card -> Card -> Card -> Bool
 win pCard aCard bCard = 
     unsafePerformIO (getPlayerVote pCard aCard bCard)
 
+-- removes the first instance of specified element from the list
+removeElem :: (Eq p) => [p] -> p -> [p]
+removeElem [] _ = []
+removeElem (x:xs) e
+    | x == e = xs
+    | otherwise = x:removeElem xs e 
+
+-- print cards' indices so it's easier to select them (just used for command line version)
+printCards :: [Card] -> Int -> IO ()
+printCards [] _ = return ()
+printCards (c:cs) n = do
+    putStrLn $ show n ++ ": " ++ c
+    printCards cs (n+1)
+    
+-- prints out the Black prompt card and the person's white Card choices
+-- person can select 0-9 representing the order of white Cards to choose 
+getPlayerChoice (State internalstate (card:t) (p:pCards)) = do 
+    putStrLn card
+    putStrLn "Select which card to play 0-9"
+    printCards pCards 0
+    line <- getLine
+    if all isDigit line && read line < length pCards && read line >= 0
+        then return (pCards !! read line)
+        else putStrLn "Invalid input, please enter a number between 0-9." >> getPlayerChoice (State internalstate (card:t) pCards)
+
 -- allows the player to vote which selected card will win 
 getPlayerVote :: Card -> Card -> Card -> IO Bool
 getPlayerVote pCard aCard bCard = do 
@@ -106,29 +132,11 @@ getPlayerVote pCard aCard bCard = do
         "1" -> return False 
         _ -> getPlayerVote pCard aCard bCard 
 
--- removes the first instance of specified element from the list
-removeElem :: (Eq p) => [p] -> p -> [p]
-removeElem [] _ = []
-removeElem (x:xs) e
-    | x == e = xs
-    | otherwise = x:removeElem xs e 
-
 -- loops over game play, gathering player's action and calling game to update state 
 play :: Game -> State -> IO String
 play game (State internalstate (bCard:aCard:t) pCards) = do
-    person_play <- person (State internalstate [bCard] pCards)
+    person_play <- getPlayerChoice (State internalstate [bCard] pCards)
     case game (Action person_play) (State internalstate (bCard:aCard:t) pCards) of 
         EndOfGame True end_state -> return "You are funnier than GPT!"
         EndOfGame False end_state -> return "GPT is funnier than you!"
         ContinueGame next_state -> play game next_state
-                             
--- prints out the Black prompt card and the person's white Card choices
--- person can select 0-9 representing the order of white Cards to choose 
--- !!! TODO: add checks for proper input and return user specified card, currently returns the first               
-person :: State -> IO Card
-person (State internalstate (card:t) (p:pCards)) = do 
-    putStrLn card
-    putStrLn "Select which card to play 0-9"
-    print (p:pCards)
-    line <- getLine
-    return p
