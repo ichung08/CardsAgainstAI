@@ -1,3 +1,5 @@
+module Cards where
+
 import System.Random
 import Data.Array.IO
 import Control.Monad
