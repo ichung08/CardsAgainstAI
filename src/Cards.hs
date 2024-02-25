@@ -135,10 +135,10 @@ getPlayerVote pCard aCard bCard = do
         _ -> getPlayerVote pCard aCard bCard 
 
 -- loops over game play, gathering player's action and calling game to update state 
-play :: Game -> State -> IO String
-play game (State internalstate (bCard:aCard:t) pCards) = do
+playGame :: Game -> State -> IO String
+playGame game (State internalstate (bCard:aCard:t) pCards) = do
     person_play <- getPlayerChoice (State internalstate [bCard] pCards)
     case game (Action person_play) (State internalstate (bCard:aCard:t) pCards) of 
         EndOfGame True end_state -> return "You are funnier than GPT!"
         EndOfGame False end_state -> return "GPT is funnier than you!"
-        ContinueGame next_state -> play game next_state
+        ContinueGame next_state -> playGame game next_state

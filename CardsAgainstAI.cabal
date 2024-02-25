@@ -27,6 +27,7 @@ library
   exposed-modules:
       Cards
       Lib
+      Ui
   other-modules:
       Paths_CardsAgainstAI
   autogen-modules:
