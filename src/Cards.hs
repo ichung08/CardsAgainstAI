@@ -9,12 +9,17 @@ import GHC.IO.Unsafe
 import Data.Char
 
 -- state consists of:
--- white cards
--- black cards and AI answers
+-- the deck:
+--      - white cards
+--      - black cards and AI answers
 -- score
--- game's remaining questions
--- player's hand
-data State = State [Card] [[Card]] (Int, Int) [Card] [Card]
+-- chosen cards:
+--      - game's remaining questions
+--      - player's hand
+-- UI views:
+--      - # representing current card being displayed before being submitted
+--      - # representing step of the game: 0) choosing a card, 1) voting the best card, 2) endgame view
+data State = State [Card] [[Card]] (Int, Int) [Card] [Card] Int Int
          deriving (Ord, Eq, Show)
 
 -- each card is a string of words 
@@ -79,20 +84,21 @@ processShuffle deck = unsafePerformIO(shuffled) where shuffled = shuffle deck
 
 -- initialize basic game, 10 white cards, 10 black cards, 10 player's cards
 newGame :: State
-newGame = State w2 b (0, 0) b1 w1 where 
+newGame = State w2 b (0, 0) b1 w1 cardView gameView where
     (w1, w2) = splitAt 10 (take 20 (processShuffle whiteDeck))
     b1:b = take 10 (processShuffle blackDeck)
-
+    cardView = 0 -- initialize to first card held
+    gameView = 0 -- start with card selection view
 
 -- updates the score and refreshes black card and available actions each round
 -- terminates game when there are no more white or black cards in decks
 cards :: Game 
-cards (Action pCard) (State (w:wCards) (b:bCards) (pScore, aScore) (card:aCard:rest) pCards)
-    | win pCard aCard card = ContinueGame (State wCards bCards (pScore + 1, aScore) b (w:removeElem pCards pCard))
-    | otherwise = ContinueGame (State wCards bCards (pScore, aScore+1) b (w:removeElem pCards pCard))
-cards (Action pCard) (State _ _ (pScore, aScore) (card:aCard:rest) pCards)
-    | win pCard aCard card = EndOfGame ((pScore + 1) > aScore) (State [] [] (pScore+1, aScore) [] pCards)
-    | otherwise = EndOfGame (pScore > (aScore+1)) (State [] [] (pScore, aScore+1) [] pCards)
+cards (Action pCard) (State (w:wCards) (b:bCards) (pScore, aScore) (card:aCard:rest) pCards cardView gameView)
+    | win pCard aCard card = ContinueGame (State wCards bCards (pScore + 1, aScore) b (w:removeElem pCards pCard) cardView 0) -- TODO: where to set gameView to 1?
+    | otherwise = ContinueGame (State wCards bCards (pScore, aScore+1) b (w:removeElem pCards pCard) cardView 0)
+cards (Action pCard) (State _ _ (pScore, aScore) (card:aCard:rest) pCards cardView gameView)
+    | win pCard aCard card = EndOfGame ((pScore + 1) > aScore) (State [] [] (pScore+1, aScore) [] pCards cardView 2)
+    | otherwise = EndOfGame (pScore > (aScore+1)) (State [] [] (pScore, aScore+1) [] pCards cardView 2)
 
 -- converts player's vote to Bool for further use
 win :: Card -> Card -> Card -> Bool
@@ -115,14 +121,14 @@ printCards (c:cs) n = do
     
 -- prints out the Black prompt card and the person's white Card choices
 -- person can select 0-9 representing the order of white Cards to choose 
-getPlayerChoice (State ws bs score (card:t) (p:pCards)) = do 
+getPlayerChoice (State ws bs score (card:t) (p:pCards) cardView gameView) = do 
     putStrLn card
     putStrLn "Select which card to play 0-9"
     printCards pCards 0
-    line <- getLine
+    line <- getLine -- use # in cardView instead of player input. Change once # can be set from UI
     if all isDigit line && read line < length pCards && read line >= 0
         then return (pCards !! read line)
-        else putStrLn "Invalid input, please enter a number between 0-9." >> getPlayerChoice (State ws bs score (card:t) pCards)
+        else putStrLn "Invalid input, please enter a number between 0-9." >> getPlayerChoice (State ws bs score (card:t) pCards cardView gameView)
 
 -- allows the player to vote which selected card will win 
 getPlayerVote :: Card -> Card -> Card -> IO Bool
@@ -139,9 +145,9 @@ getPlayerVote pCard aCard bCard = do
 
 -- loops over game play, gathering player's action and calling game to update state 
 playGame :: Game -> State -> IO String
-playGame game (State ws bs score (bCard:aCard:t) pCards) = do
-    person_play <- getPlayerChoice (State ws bs score [bCard] pCards)
-    case game (Action person_play) (State ws bs score (bCard:aCard:t) pCards) of 
+playGame game (State ws bs score (bCard:aCard:t) pCards cardView gameView) = do
+    person_play <- getPlayerChoice (State ws bs score [bCard] pCards cardView gameView)
+    case game (Action person_play) (State ws bs score (bCard:aCard:t) pCards cardView gameView) of 
         EndOfGame True end_state -> return "You are funnier than GPT!"
         EndOfGame False end_state -> return "GPT is funnier than you!"
         ContinueGame next_state -> playGame game next_state
