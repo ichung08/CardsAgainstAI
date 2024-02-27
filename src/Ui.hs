@@ -23,7 +23,7 @@ startY = -290 :: Float
 -- Drawing function
 drawState :: State -> Picture
 drawState world
-  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [stateCard]  -- Regular game mode
+  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [stateCard]  -- Selection game mode
   | gameStep world == 1 = votingPhase  -- Voting phase
   | gameStep world == 2 = translate (-100) 0 $ scale 0.3 0.3 $ text "You Win!"  -- End game mode
   where
