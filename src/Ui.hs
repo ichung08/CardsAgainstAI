@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Data.List (findIndex)
@@ -20,7 +23,7 @@ startY = -290 :: Float
 -- Drawing function
 drawState :: State -> Picture
 drawState world
-  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [stateCard]  -- Regular game mode
+  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [stateCard]  -- Selection game mode
   | gameStep world == 1 = votingPhase  -- Voting phase
   | gameStep world == 2 = translate (-100) 0 $ scale 0.3 0.3 $ text "You Win!"  -- End game mode
   where
@@ -30,7 +33,11 @@ drawState world
                    in translate x startY $ color col $ rectangleSolid buttonWidth buttonHeight
     stateCard = Pictures [ translate 0 0 $ color white $ rectangleSolid 100 140,
                            translate 0 0 $ color black $ rectangleWire 100 140,
-                           translate (-30) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world) ]
+                           translate (-30) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world),
+                           
+                           -- submit button:
+                           translate 0 (-100) $ color black $ rectangleSolid 100 40,
+                           translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit"]
 
     votingPhase = Pictures [ translate (-150) 0 $ color white $ rectangleSolid 100 140,  -- Card A
                              translate (-150) 0 $ color black $ rectangleWire 100 140,
@@ -43,17 +50,17 @@ drawState world
 handleEvent :: Event -> State -> State
 handleEvent (EventKey (MouseButton LeftButton) Up _ mousePos) world =
     case gameStep world of
-      0 -> handleDefaultPhase mousePos world
+      0 -> handleSelectionPhase mousePos world
       1 -> handleVotingPhase mousePos world
       2 -> world  -- No action in the end game phase
       _ -> world  -- Catch-all for unexpected gameStep values
   where
-    handleDefaultPhase mousePos world =
+    handleSelectionPhase mousePos world =
       case buttonClicked mousePos of
+        -- clicking a card
         Just n  -> case n of
-                     8 -> transitionToVoting world
-                     9 -> endGame world
-                     _ -> selectCard n world
+                     -1 -> transitionToVoting world  -- Handle the submit button
+                     _  -> selectCard n world  -- Handle regular card selection
         Nothing -> world
 
     handleVotingPhase mousePos world
@@ -67,8 +74,11 @@ handleEvent (EventKey (MouseButton LeftButton) Up _ mousePos) world =
 handleEvent _ world = world  -- Handle other events
 
 -- Check if a button is clicked and return its index
+-- also handles submit button
 buttonClicked :: Point -> Maybe Int
-buttonClicked (x, y) = findIndex (isClicked x y) buttonPositions
+buttonClicked (x, y)
+  | x >= -250 && x <= -50 && y >= -70 && y <= 70 = Just (-1)  -- Submit -- TODO: Fix coordinates
+  | otherwise = findIndex (isClicked x y) buttonPositions
   where
     isClicked xClick yClick (xPos, yPos) =
         xClick >= xPos - buttonWidth / 2 && xClick <= xPos + buttonWidth / 2 &&
