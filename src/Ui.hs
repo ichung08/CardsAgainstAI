@@ -143,9 +143,7 @@ voteForCardA (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestion
 -- end game if questions are empty:
 voteForCardA (State (w:wCards) [] (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State (w:wCards) [] (pScore+1, aScore) [] playerHand cardSelection 2
-
 -- catch bugs, skip to end screen
--- TODO: this is triggering on the first vote. What '_' is causing it?
 voteForCardA (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore+1, aScore) [] [] 0 2)
 
 -- Votes for Card B
@@ -155,8 +153,6 @@ voteForCardB (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestion
 -- end game if questions are empty:
 voteForCardB (State _ _ (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State [] [] (pScore, aScore+1) [] playerHand cardSelection 2
-
--- TODO: same as above
 voteForCardB (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore, aScore+1) [] [] 0 2)
 
 
