@@ -26,7 +26,7 @@ source-repository head
 library
   exposed-modules:
       Cards
-      Ui
+      UI
   other-modules:
       Paths_CardsAgainstAI
   autogen-modules:

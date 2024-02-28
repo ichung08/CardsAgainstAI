@@ -14,7 +14,7 @@ import Data.Char
 --      - black cards and AI answers
 -- score
 -- chosen cards:
---      - game's remaining questions
+--      - game's current question
 --      - player's hand
 -- UI views:
 --      - # representing current card being displayed before being submitted
@@ -45,6 +45,14 @@ splitsep sep (h:t)
     | sep h = []: splitsep sep t
     | otherwise = (h:w):rest
                 where w:rest = splitsep sep t
+
+-- for q&a pairs
+takeBeforeSemicolon :: String -> String
+takeBeforeSemicolon = takeWhile (/= ';')
+
+takeAfterSemicolon :: String -> String
+takeAfterSemicolon = tail . dropWhile (/= ';')
+
 
 -- taken from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/ReadCSV.hs
 -- reads csv file and turns to list of lines
@@ -111,6 +119,11 @@ removeElem [] _ = []
 removeElem (x:xs) e
     | x == e = xs
     | otherwise = x:removeElem xs e 
+
+-- remove using an index instead:
+removeAt :: Int -> [a] -> [a]
+removeAt idx xs = let (before, after) = splitAt idx xs
+                  in before ++ (drop 1 after)
 
 -- print cards' indices so it's easier to select them (just used for command line version)
 printCards :: [Card] -> Int -> IO ()

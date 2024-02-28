@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant bracket" #-}
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Data.List (findIndex)
@@ -23,28 +25,31 @@ startY = -290 :: Float
 -- Drawing function
 drawState :: State -> Picture
 drawState world
-  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [stateCard]  -- Selection game mode
+  | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [selectionPhase]  -- Selection game mode
   | gameStep world == 1 = votingPhase  -- Voting phase
-  | gameStep world == 2 = translate (-100) 0 $ scale 0.3 0.3 $ text "You Win!"  -- End game mode
+  | gameStep world == 2 = translate (-100) 0 $ scale 0.3 0.3 $ text (endText world)  -- End game mode
   where
     buttonColors = [red, orange, yellow, green, blue, violet, cyan, magenta, rose, azure]
     drawButton i = let (x, _) = buttonPositions !! i
                        col = buttonColors !! i
                    in translate x startY $ color col $ rectangleSolid buttonWidth buttonHeight
-    stateCard = Pictures [ translate 0 0 $ color white $ rectangleSolid 100 140,
-                           translate 0 0 $ color black $ rectangleWire 100 140,
-                           translate (-30) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world),
+    selectionPhase = Pictures [ translate 0 0 $ color white $ rectangleSolid 400 140,
+                           translate 0 0 $ color black $ rectangleWire 400 140,
+                           translate (-350) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
                            
                            -- submit button:
-                           translate 0 (-100) $ color black $ rectangleSolid 100 40,
-                           translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit"]
+                           translate 0 (-100) $ color white $ rectangleSolid 100 40,
+                           translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
+                           
+                           -- current question
+                           translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ "Question: " ++ (currentQText world)]
 
     votingPhase = Pictures [ translate (-150) 0 $ color white $ rectangleSolid 100 140,  -- Card A
                              translate (-150) 0 $ color black $ rectangleWire 100 140,
-                             translate (-180) 0 $ scale 0.2 0.2 $ color black $ text "A",
+                             translate (-180) 0 $ scale 0.2 0.2 $ color black $ text (currentCardText world),
                              translate (150) 0 $ color white $ rectangleSolid 100 140,  -- Card B
                              translate (150) 0 $ color black $ rectangleWire 100 140,
-                             translate (120) 0 $ scale 0.2 0.2 $ color black $ text "B" ]
+                             translate (120) 0 $ scale 0.2 0.2 $ color black $ text (currentQAnswer world) ]
 
 -- Handling events
 handleEvent :: Event -> State -> State
@@ -77,7 +82,7 @@ handleEvent _ world = world  -- Handle other events
 -- also handles submit button
 buttonClicked :: Point -> Maybe Int
 buttonClicked (x, y)
-  | x >= -250 && x <= -50 && y >= -70 && y <= 70 = Just (-1)  -- Submit -- TODO: Fix coordinates
+  | x >= -50 && x <= 50 && y >= -140 && y <= -100 = Just (-1)  -- Submit
   | otherwise = findIndex (isClicked x y) buttonPositions
   where
     isClicked xClick yClick (xPos, yPos) =
@@ -98,6 +103,19 @@ currentCardText:: State -> Card
 currentCardText (State whiteCards blackCards score chosenQuestions playerHand cardSelection step) =
     playerHand !! cardSelection
 
+currentQText:: State -> Card
+currentQText (State whiteCards blackCards score (currQ:chosenQuestions) playerHand cardSelection step) =
+    takeBeforeSemicolon currQ
+
+currentQAnswer:: State -> Card
+currentQAnswer (State whiteCards blackCards score (currQ:chosenQuestions) playerHand cardSelection step) =
+    takeAfterSemicolon currQ
+
+endText:: State -> [Char]
+endText (State whiteCards blackCards (pScore,aScore) chosenQuestions playerHand cardSelection _)
+  | pScore >= aScore = "You win!"
+  | otherwise = "You lose"
+
 -- Transitions the game to the voting phase (sets to 1)
 transitionToVoting :: State -> State
 transitionToVoting (State whiteCards blackCards score chosenQuestions playerHand cardSelection _) =
@@ -113,16 +131,34 @@ selectCard :: Int -> State -> State
 selectCard index (State whiteCards blackCards score chosenQuestions playerHand cardSelection gameStep) =
     State whiteCards blackCards score chosenQuestions playerHand index gameStep
 
+-- main game updating here:
+-- increment score based on choice
+-- remove move top of Q/A decks into chosenQuestions and playerHand
+-- set mode back to card selection or to endGame
 
 -- Votes for Card A
 voteForCardA :: State -> State
-voteForCardA (State whiteCards blackCards (scoreW, scoreB) chosenQuestions playerHand cardSelection gameStep) =
-    State whiteCards blackCards (scoreW + 1, scoreB) chosenQuestions playerHand cardSelection 0 -- Back to choosing a card phase
+voteForCardA (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
+  State wCards bCards (pScore+1, aScore) b (w:removeAt cardSelection playerHand) cardSelection 0
+-- end game if questions are empty:
+voteForCardA (State (w:wCards) [] (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
+  State (w:wCards) [] (pScore+1, aScore) [] playerHand cardSelection 2
+
+-- catch bugs, skip to end screen
+-- TODO: this is triggering on the first vote. What '_' is causing it?
+voteForCardA (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore+1, aScore) [] [] 0 2)
 
 -- Votes for Card B
 voteForCardB :: State -> State
-voteForCardB (State whiteCards blackCards (scoreW, scoreB) chosenQuestions playerHand cardSelection gameStep) =
-    State whiteCards blackCards (scoreW, scoreB + 1) chosenQuestions playerHand cardSelection 0 -- Back to choosing a card phase
+voteForCardB (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
+  State wCards bCards (pScore, aScore+1) b (w:removeAt cardSelection playerHand) cardSelection 0
+-- end game if questions are empty:
+voteForCardB (State _ _ (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
+  State [] [] (pScore, aScore+1) [] playerHand cardSelection 2
+
+-- TODO: same as above
+voteForCardB (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore, aScore+1) [] [] 0 2)
+
 
 
 -- Main function
