@@ -39,23 +39,24 @@ drawState world
     
     -- The selection phase layout, which includes the current question, and the current card
     selectionPhase = Pictures [ translate 0 0 $ color white $ rectangleSolid 400 140,
-                              translate (-350) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
+                              translate (-350) 0 $ scale 0.15 0.15 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
                               
                               -- submit button:
                               translate 0 (-100) $ color white $ rectangleSolid 100 40,
                               translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
                               
                               -- current question
-                              translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ "Question: " ++ (currentQText world)]
+                              translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ (currentQText world)]
     
     -- The voting phase layout, which includes two larger rectangles representing the cards to vote on,
     -- with text indicating the user's card and the AI's card
-    votingPhase = Pictures [ translate (-300) 0 $ color white $ rectangleSolid 200 240,  -- Card A
-                             translate (-300) 0 $ color black $ rectangleWire 200 240,
-                             translate (-330) 0 $ scale 0.15 0.15 $ color black $ text (currentCardText world),
-                             translate 100 0 $ color white $ rectangleSolid 200 240,  -- Card B
-                             translate 100 0 $ color black $ rectangleWire 200 240,
-                             translate 70 0 $ scale 0.15 0.15 $ color black $ text (currentQAnswer world) ]
+    votingPhase = Pictures [ translate (-550) (100) $ scale 0.2 0.2 $ color black $ text $ (currentQText world), -- current question
+                             
+                             translate (-515) (10) $ color black $ rectangleWire 100 70, -- Card A
+                             translate (-550) (0) $ scale 0.15 0.15 $ color black $ text $ "Card A: " ++ (currentCardText world),
+
+                             translate (-515) (-90) $ color black $ rectangleWire 100 70, -- Card B
+                             translate (-550) (-100) $ scale 0.15 0.15 $ color black $ text $ "Card B: " ++ (currentQAnswer world)]
 
 
 -- Handles user input events and updates the game state accordingly
@@ -82,10 +83,10 @@ handleEvent (EventKey (MouseButton LeftButton) Up _ mousePos) world =
       | otherwise = world  
 
     -- Checks if Card A is clicked based on the mouse position
-    isClickedOnCardA (x, y) = x >= -250 && x <= -50 && y >= -70 && y <= 70
+    isClickedOnCardA (x, y) = x >= -575 && y >= 0 && y <= 90
 
     -- Checks if Card B is clicked based on the mouse position
-    isClickedOnCardB (x, y) = x >= 50 && x <= 250 && y >= -70 && y <= 70
+    isClickedOnCardB (x, y) = x >= -575 && y >= -100 && y <= -10
 
 -- Default case for handling events, which maintains the current state for any non-mouse events
 handleEvent _ world = world
@@ -116,11 +117,11 @@ currentCardText (State _ _ _ _ playerHand cardSelection _) = playerHand !! cardS
 
 -- Obtains the text of the current question from the State
 currentQText :: State -> Card
-currentQText (State _ _ _ (currQ:_) _ _ _) = takeBeforeSemicolon currQ
+currentQText (State _ _ _ (currQ:_) _ _ _) = currQ
 
 -- Gets the answer text associated with the current question from the State
 currentQAnswer :: State -> Card
-currentQAnswer (State _ _ _ (currQ:_) _ _ _) = takeAfterSemicolon currQ
+currentQAnswer (State _ _ _ (currQ:currQAns:_) _ _ _) = currQAns
 
 -- Determines the end game text based on the scores within the State, indicating a win or loss
 endText :: State -> [Char]

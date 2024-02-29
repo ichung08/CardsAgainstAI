@@ -46,14 +46,6 @@ splitsep sep (h:t)
     | otherwise = (h:w):rest
                 where w:rest = splitsep sep t
 
--- for q&a pairs
-takeBeforeSemicolon :: String -> String
-takeBeforeSemicolon = takeWhile (/= ';')
-
-takeAfterSemicolon :: String -> String
-takeAfterSemicolon = tail . dropWhile (/= ';')
-
-
 -- taken from https://www.cs.ubc.ca/~poole/cs312/2024/haskell/ReadCSV.hs
 -- reads csv file and turns to list of lines
 readcsv :: FilePath -> IO [Card]
@@ -68,7 +60,7 @@ whiteDeck = unsafePerformIO(readcsv "answers.csv")
 
 -- load black deck from file 
 blackDeck :: [[Card]]
-blackDeck = [splitsep (==',') line| line <- unsafePerformIO(readcsv "questions_answers_index.csv")]
+blackDeck = [splitsep (==';') line| line <- unsafePerformIO(readcsv "questions_answers_index.csv")]
 
 -- algorithm for shuffle taken from https://wiki.haskell.org/Random_shuffle
 -- Randomly shuffle a list
