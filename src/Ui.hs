@@ -3,17 +3,18 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant bracket" #-}
+module Ui where
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Data.List (findIndex)
 
 import Cards
 
--- Window configuration
+-- Defines the window properties for the GUI
 window :: Display
-window = InWindow "Button UI" (800, 600) (100, 100)
+window = InWindow "Cards Against AI" (1440, 768) (100, 100)
 
--- Initial world state
+-- Initializes the game state using the newGame function from the Cards module
 initialState :: State
 initialState = newGame
 
@@ -22,7 +23,9 @@ buttonWidth = 80 :: Float
 buttonHeight = 40 :: Float
 startY = -290 :: Float
 
--- Drawing function
+-- The main drawing function that renders the game state to the screen
+-- It checks the current game step and displays the corresponding game phase:
+-- a selection phase with buttons, a voting phase with options, or the end game text
 drawState :: State -> Picture
 drawState world
   | gameStep world == 0 = Pictures $ map drawButton [0..9] ++ [selectionPhase]  -- Selection game mode
@@ -33,102 +36,110 @@ drawState world
     drawButton i = let (x, _) = buttonPositions !! i
                        col = buttonColors !! i
                    in translate x startY $ color col $ rectangleSolid buttonWidth buttonHeight
+    
+    -- The selection phase layout, which includes the current question, and the current card
     selectionPhase = Pictures [ translate 0 0 $ color white $ rectangleSolid 400 140,
-                           translate 0 0 $ color black $ rectangleWire 400 140,
-                           translate (-350) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
-                           
-                           -- submit button:
-                           translate 0 (-100) $ color white $ rectangleSolid 100 40,
-                           translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
-                           
-                           -- current question
-                           translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ "Question: " ++ (currentQText world)]
+                              translate (-350) 0 $ scale 0.2 0.2 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
+                              
+                              -- submit button:
+                              translate 0 (-100) $ color white $ rectangleSolid 100 40,
+                              translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
+                              
+                              -- current question
+                              translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ "Question: " ++ (currentQText world)]
+    
+    -- The voting phase layout, which includes two larger rectangles representing the cards to vote on,
+    -- with text indicating the user's card and the AI's card
+    votingPhase = Pictures [ translate (-300) 0 $ color white $ rectangleSolid 200 240,  -- Card A
+                             translate (-300) 0 $ color black $ rectangleWire 200 240,
+                             translate (-330) 0 $ scale 0.15 0.15 $ color black $ text (currentCardText world),
+                             translate 100 0 $ color white $ rectangleSolid 200 240,  -- Card B
+                             translate 100 0 $ color black $ rectangleWire 200 240,
+                             translate 70 0 $ scale 0.15 0.15 $ color black $ text (currentQAnswer world) ]
 
-    votingPhase = Pictures [ translate (-150) 0 $ color white $ rectangleSolid 100 140,  -- Card A
-                             translate (-150) 0 $ color black $ rectangleWire 100 140,
-                             translate (-180) 0 $ scale 0.2 0.2 $ color black $ text (currentCardText world),
-                             translate (150) 0 $ color white $ rectangleSolid 100 140,  -- Card B
-                             translate (150) 0 $ color black $ rectangleWire 100 140,
-                             translate (120) 0 $ scale 0.2 0.2 $ color black $ text (currentQAnswer world) ]
 
--- Handling events
+-- Handles user input events and updates the game state accordingly
 handleEvent :: Event -> State -> State
 handleEvent (EventKey (MouseButton LeftButton) Up _ mousePos) world =
     case gameStep world of
-      0 -> handleSelectionPhase mousePos world
-      1 -> handleVotingPhase mousePos world
-      2 -> world  -- No action in the end game phase
-      _ -> world  -- Catch-all for unexpected gameStep values
+      0 -> handleSelectionPhase mousePos world  -- In the selection phase, handle the event based on the button clicked
+      1 -> handleVotingPhase mousePos world     -- In the voting phase, handle the event based on voting card selection
+      2 -> world  -- No action is taken if the game is in the end game phase
+      _ -> world  
   where
+    -- Responds to click events during the selection phase by selecting a card or transitioning to the voting phase
     handleSelectionPhase mousePos world =
       case buttonClicked mousePos of
-        -- clicking a card
         Just n  -> case n of
-                     -1 -> transitionToVoting world  -- Handle the submit button
-                     _  -> selectCard n world  -- Handle regular card selection
-        Nothing -> world
+                     -1 -> transitionToVoting world  -- If the submit button is clicked, proceed to the voting phase
+                     _  -> selectCard n world        -- If any other button is clicked, select the corresponding card
+        Nothing -> world  
 
+    -- Responds to click events during the voting phase by processing votes for Card A or Card B
     handleVotingPhase mousePos world
-      | isClickedOnCardA mousePos = voteForCardA world
-      | isClickedOnCardB mousePos = voteForCardB world
-      | otherwise = world
+      | isClickedOnCardA mousePos = voteForCardA world  -- If Card A is clicked, register a vote for Card A
+      | isClickedOnCardB mousePos = voteForCardB world  -- If Card B is clicked, register a vote for Card B
+      | otherwise = world  
 
+    -- Checks if Card A is clicked based on the mouse position
     isClickedOnCardA (x, y) = x >= -250 && x <= -50 && y >= -70 && y <= 70
+
+    -- Checks if Card B is clicked based on the mouse position
     isClickedOnCardB (x, y) = x >= 50 && x <= 250 && y >= -70 && y <= 70
 
-handleEvent _ world = world  -- Handle other events
+-- Default case for handling events, which maintains the current state for any non-mouse events
+handleEvent _ world = world
 
--- Check if a button is clicked and return its index
--- also handles submit button
+-- Determines if a mouse click is within the bounds of any button or the submit area, returning the index of the button clicked
 buttonClicked :: Point -> Maybe Int
 buttonClicked (x, y)
-  | x >= -50 && x <= 50 && y >= -140 && y <= -100 = Just (-1)  -- Submit
-  | otherwise = findIndex (isClicked x y) buttonPositions
+  | x >= -50 && x <= 50 && y >= -140 && y <= -100 = Just (-1)  -- Checks if the submit button is clicked
+  | otherwise = findIndex (isClicked x y) buttonPositions       -- Checks which button, if any, is clicked
   where
     isClicked xClick yClick (xPos, yPos) =
         xClick >= xPos - buttonWidth / 2 && xClick <= xPos + buttonWidth / 2 &&
         yClick >= yPos - buttonHeight / 2 && yClick <= yPos + buttonHeight / 2
 
--- Button positions
+-- A list of tuples representing the positions of buttons on the screen
 buttonPositions :: [(Float, Float)]
 buttonPositions = [((-360) + buttonWidth * fromIntegral i, startY) | i <- [0..9]]
 
 --- helper functions to change game state:
 
-gameStep:: State -> Int
-gameStep (State whiteCards blackCards score chosenQuestions playerHand cardSelection step) =
-    step
+-- Retrieves the current game step from the State
+gameStep :: State -> Int
+gameStep (State _ _ _ _ _ _ step) = step
 
-currentCardText:: State -> Card
-currentCardText (State whiteCards blackCards score chosenQuestions playerHand cardSelection step) =
-    playerHand !! cardSelection
+-- Extracts the text of the currently selected card from the player's hand within the State
+currentCardText :: State -> Card
+currentCardText (State _ _ _ _ playerHand cardSelection _) = playerHand !! cardSelection
 
-currentQText:: State -> Card
-currentQText (State whiteCards blackCards score (currQ:chosenQuestions) playerHand cardSelection step) =
-    takeBeforeSemicolon currQ
+-- Obtains the text of the current question from the State
+currentQText :: State -> Card
+currentQText (State _ _ _ (currQ:_) _ _ _) = takeBeforeSemicolon currQ
 
-currentQAnswer:: State -> Card
-currentQAnswer (State whiteCards blackCards score (currQ:chosenQuestions) playerHand cardSelection step) =
-    takeAfterSemicolon currQ
+-- Gets the answer text associated with the current question from the State
+currentQAnswer :: State -> Card
+currentQAnswer (State _ _ _ (currQ:_) _ _ _) = takeAfterSemicolon currQ
 
-endText:: State -> [Char]
-endText (State whiteCards blackCards (pScore,aScore) chosenQuestions playerHand cardSelection _)
-  | pScore >= aScore = "You win!"
-  | otherwise = "You lose"
+-- Determines the end game text based on the scores within the State, indicating a win or loss
+endText :: State -> [Char]
+endText (State _ _ (pScore,aScore) _ _ _ _) =
+  if pScore >= aScore then "You win!" else "You lose"
 
--- Transitions the game to the voting phase (sets to 1)
+-- Changes the State to transition the game to the voting phase
 transitionToVoting :: State -> State
 transitionToVoting (State whiteCards blackCards score chosenQuestions playerHand cardSelection _) =
     State whiteCards blackCards score chosenQuestions playerHand cardSelection 1
 
--- Ends the game (sets to 2)
+-- Modifies the State to indicate that the game has ended
 endGame :: State -> State
 endGame (State whiteCards blackCards score chosenQuestions playerHand cardSelection _) =
     State whiteCards blackCards score chosenQuestions playerHand cardSelection 2
 
--- Change the selected card:
+-- Updates the State to reflect the selection of a new card by the player
 selectCard :: Int -> State -> State
-selectCard index (State whiteCards blackCards score chosenQuestions playerHand cardSelection gameStep) =
+selectCard index (State whiteCards blackCards score chosenQuestions playerHand _ gameStep) =
     State whiteCards blackCards score chosenQuestions playerHand index gameStep
 
 -- main game updating here:
@@ -136,31 +147,28 @@ selectCard index (State whiteCards blackCards score chosenQuestions playerHand c
 -- remove move top of Q/A decks into chosenQuestions and playerHand
 -- set mode back to card selection or to endGame
 
--- Votes for Card A
+-- Processes a vote for Card A, updates the game state accordingly
+-- It increments the player's score, removes the selected card from the hand,
+-- moves the top of the question/answer decks into the chosenQuestions, and resets the game step for the next round
 voteForCardA :: State -> State
 voteForCardA (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State wCards bCards (pScore+1, aScore) b (w:removeAt cardSelection playerHand) cardSelection 0
--- end game if questions are empty:
+-- If there are no more questions left, it ends the game and sets the game step to 2
 voteForCardA (State (w:wCards) [] (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State (w:wCards) [] (pScore+1, aScore) [] playerHand cardSelection 2
--- catch bugs, skip to end screen
-voteForCardA (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore+1, aScore) [] [] 0 2)
+-- In case of a bug or unexpected situation where the game cannot continue normally, it forces the game to end
+voteForCardA (State _ _ (pScore, aScore) _ _ _ gameStep) = State [] [] (pScore+1, aScore) [] [] 0 2
 
--- Votes for Card B
+-- Processes a vote for Card B, and increments the AI's score instead
 voteForCardB :: State -> State
 voteForCardB (State (w:wCards) (b:bCards) (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State wCards bCards (pScore, aScore+1) b (w:removeAt cardSelection playerHand) cardSelection 0
--- end game if questions are empty:
+-- Ends the game if no more questions are available, indicating the round of voting is the last
 voteForCardB (State _ _ (pScore, aScore) (currQ:chosenQuestions) playerHand cardSelection gameStep) =
   State [] [] (pScore, aScore+1) [] playerHand cardSelection 2
-voteForCardB (State _ _ (pScore, aScore) _ _ _ gameStep) = (State [] [] (pScore, aScore+1) [] [] 0 2)
+-- Forces the game to the end screen if the game's state is invalid or cannot continue
+voteForCardB (State _ _ (pScore, aScore) _ _ _ gameStep) = State [] [] (pScore, aScore+1) [] [] 0 2
 
-
-
--- Main function
-main :: IO ()
-main = play window white 30 initialState drawState handleEvent updateState
-
--- Update function, potentially needed depending on the game logic
+-- Updates game state
 updateState :: Float -> State -> State
 updateState _ = id
