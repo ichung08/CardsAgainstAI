@@ -39,18 +39,18 @@ drawState world
     
     -- The selection phase layout, which includes the current question, and the current card
     selectionPhase = Pictures [ translate 0 0 $ color white $ rectangleSolid 400 140,
-                              translate (-350) 0 $ scale 0.15 0.15 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
+                              translate (-550) (0) $ scale 0.15 0.15 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
                               
                               -- submit button:
                               translate 0 (-100) $ color white $ rectangleSolid 100 40,
                               translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
                               
                               -- current question
-                              translate (-350) (100) $ scale 0.2 0.2 $ color black $ text $ (currentQText world)]
+                              translate (-550) (100) $ scale 0.16 0.16 $ color black $ text $ (currentQText world)]
     
     -- The voting phase layout, which includes two larger rectangles representing the cards to vote on,
     -- with text indicating the user's card and the AI's card
-    votingPhase = Pictures [ translate (-550) (100) $ scale 0.2 0.2 $ color black $ text $ (currentQText world), -- current question
+    votingPhase = Pictures [ translate (-550) (100) $ scale 0.16 0.16 $ color black $ text $ (currentQText world), -- current question
                              
                              translate (-515) (10) $ color black $ rectangleWire 100 70, -- Card A
                              translate (-550) (0) $ scale 0.15 0.15 $ color black $ text $ "Card A: " ++ (currentCardText world),
