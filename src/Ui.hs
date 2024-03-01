@@ -42,7 +42,7 @@ drawState world
                               translate (-550) (0) $ scale 0.15 0.15 $ color black $ text $ "Card: " ++ (currentCardText world), -- -200 moves text left
                               
                               -- submit button:
-                              translate 0 (-100) $ color white $ rectangleSolid 100 40,
+                              translate 0 (-100) $ color black $ rectangleWire 100 40,
                               translate (-30) (-105) $ scale 0.1 0.1 $ color black $ text "Submit",
                               
                               -- current question
@@ -94,7 +94,7 @@ handleEvent _ world = world
 -- Determines if a mouse click is within the bounds of any button or the submit area, returning the index of the button clicked
 buttonClicked :: Point -> Maybe Int
 buttonClicked (x, y)
-  | x >= -50 && x <= 50 && y >= -140 && y <= -100 = Just (-1)  -- Checks if the submit button is clicked
+  | x >= -50 && x <= 50 && y >= -120 && y <= -80 = Just (-1)  -- Checks if the submit button is clicked
   | otherwise = findIndex (isClicked x y) buttonPositions       -- Checks which button, if any, is clicked
   where
     isClicked xClick yClick (xPos, yPos) =
